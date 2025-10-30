@@ -1,9 +1,9 @@
 import sqlite3
 import os
 import struct
-import sys  # Necessário para o SystemExit
-from tkinter import filedialog, messagebox, Canvas  # Mantemos o Canvas do tkinter
-from customtkinter import *  # Importa todos os widgets CustomTkinter
+import sys
+from tkinter import filedialog, messagebox, Canvas
+from customtkinter import *
 
 # --- Constantes e Configuração ---
 CONFIG_DB = 'msx_font_editor.db'
@@ -160,7 +160,7 @@ class MSXFont:
             return False
 
 
-# --- Janela de Edição 8x8 (Usando CTkTopLevel) ---
+# --- Janela de Edição 8x8 (CTkTopLevel) ---
 
 class EditorWindow(CTkToplevel):
     """Janela de edição 8x8 de um caractere."""
@@ -169,26 +169,25 @@ class EditorWindow(CTkToplevel):
     COLOR_BG = '#1e1e1e'
     COLOR_PIXEL_ON = '#ffffff'
     COLOR_PIXEL_OFF = '#303030'
-    COLOR_CURSOR = '#1F6AA5'  # Azul mais claro, padrão CTk
+    COLOR_CURSOR = '#1F6AA5'
 
     def __init__(self, master, char_code, pattern, callback):
         self.char_code = char_code
         self.callback = callback
         self.pixel_data = [[(pattern[row] >> (7 - col)) & 1 for col in range(8)] for row in range(8)]
-        self.pixel_size = 40
+        self.pixel_size = 40  # Mantenha o editor grande para facilitar a precisão
 
         super().__init__(master)
         self.title(f"Editor de Caractere: 0x{char_code:02X} ('{chr(char_code) if 32 <= char_code <= 126 else ' '}')")
         self.configure(fg_color=self.COLOR_BG)
         self.resizable(False, False)
-        self.transient(master)  # Mantém a janela de edição sobre a principal
-        self.grab_set()  # Captura todos os eventos para esta janela
+        self.transient(master)
+        self.grab_set()
 
         # Frame para conter o canvas
         editor_frame = CTkFrame(self, fg_color=self.COLOR_BG)
         editor_frame.pack(padx=10, pady=10)
 
-        # O Canvas do Tkinter é usado, pois CustomTkinter não possui um Canvas próprio
         self.editor_canvas = Canvas(editor_frame, width=8 * self.pixel_size, height=8 * self.pixel_size,
                                     bg=self.COLOR_BG, highlightthickness=1, highlightbackground=self.COLOR_PIXEL_ON)
         self.editor_canvas.pack(padx=1, pady=1)
@@ -197,9 +196,9 @@ class EditorWindow(CTkToplevel):
 
         # Bindings
         self.editor_canvas.bind('<Button-1>', self.on_click)
-        self.editor_canvas.bind('<Button-3>', self.save_and_close)  # Botão direito do mouse (salvar)
-        self.bind('<Return>', self.save_and_close)  # Tecla ENTER (salvar)
-        self.bind('<space>', self.toggle_current_pixel)  # Tecla ESPAÇO (inverter pixel)
+        self.editor_canvas.bind('<Button-3>', self.save_and_close)
+        self.bind('<Return>', self.save_and_close)
+        self.bind('<space>', self.toggle_current_pixel)
         self.bind('<Key>', self.on_key_press)
 
         self.protocol("WM_DELETE_WINDOW", self.cancel_and_close)
@@ -229,8 +228,7 @@ class EditorWindow(CTkToplevel):
         x1, y1 = c * self.pixel_size, r * self.pixel_size
         x2, y2 = x1 + self.pixel_size, y1 + self.pixel_size
 
-        self.editor_canvas.create_rectangle(x1, y1, x2, y2, outline=self.COLOR_CURSOR, width=3,
-                                            tags="editor_cursor")  # Aumentei a espessura para destaque
+        self.editor_canvas.create_rectangle(x1, y1, x2, y2, outline=self.COLOR_CURSOR, width=3, tags="editor_cursor")
 
     def move_editor_cursor(self, dx, dy):
         """Move o cursor na grade 8x8."""
@@ -294,42 +292,41 @@ class EditorWindow(CTkToplevel):
 # --- Aplicação Principal (CustomTkinter) ---
 
 class FontEditorApp(CTk):
-    """Gerencia a janela principal e a visualização 16x16 da fonte."""
+    """Gerencia a janela principal e a visualização 16x16 (32x32) da fonte."""
 
     def __init__(self, default_font_path):
         super().__init__()
 
         self.title("MSX Graphos III Font Editor (Python/CustomTkinter)")
-        # Configurações de tema do CustomTkinter
-        set_appearance_mode("Dark")  # Preferência por cores escuras
+        set_appearance_mode("Dark")
         set_default_color_theme("blue")
 
         self.font = MSXFont(default_font_path)
         self.selected_char_code = 32
 
         # Tamanhos
-        self.char_display_scale = 2
-        self.main_char_size = 8 * self.char_display_scale
-        self.canvas_size = 16 * self.main_char_size + self.main_char_size
+        # Escala 4x: Caractere 8x8 -> 32x32 pixels na tela
+        self.char_display_scale = 4
+        self.main_char_size = 8 * self.char_display_scale  # Tamanho do caractere: 32 pixels
+        self.canvas_size = 16 * self.main_char_size + self.main_char_size  # 16 caracteres * 32px + margem (17 * 32px)
 
-        # Cores (Ajustadas para o tema CustomTkinter, mas usadas no Canvas)
+        # Cores
         self.COLOR_BG = '#1e1e1e'
         self.COLOR_FG = 'white'
         self.COLOR_PIXEL_ON = 'white'
         self.COLOR_PIXEL_OFF = '#303030'
         self.COLOR_CURSOR = '#1F6AA5'
-        self.COLOR_MODIFIED = '#581845'  # Roxo/Bordô escuro para contraste no modo Dark
+        self.COLOR_MODIFIED = '#581845'
 
         # --- Layout Principal (Grid) ---
         self.grid_rowconfigure(0, weight=1)
-        self.grid_columnconfigure(0, weight=0)  # Canvas fixo
-        self.grid_columnconfigure(1, weight=1)  # Painel de info
+        self.grid_columnconfigure(0, weight=0)
+        self.grid_columnconfigure(1, weight=1)
 
         # 1. Área de Visualização do Alfabeto (Frame esquerdo)
         font_frame = CTkFrame(self, fg_color="transparent")
         font_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nswe")
 
-        # O Canvas é o componente que realmente desenha os pixels e a grade
         self.font_canvas = Canvas(font_frame, width=self.canvas_size, height=self.canvas_size,
                                   bg=self.COLOR_BG, highlightthickness=2, highlightbackground=self.COLOR_CURSOR)
         self.font_canvas.pack(padx=5, pady=5)
@@ -358,9 +355,13 @@ class FontEditorApp(CTk):
         button_frame = CTkFrame(info_frame, fg_color="transparent")
         button_frame.pack(pady=20, anchor=W)
 
-        CTkButton(button_frame, text="Abrir Nova Fonte", command=self.load_font_dialog).pack(pady=5)
-        CTkButton(button_frame, text="Salvar Fonte", command=lambda: self.font.save()).pack(pady=5)
-        CTkButton(button_frame, text="Salvar Como...", command=self.save_font_as_dialog).pack(pady=5)
+        CTkButton(button_frame, text="Abrir Nova Fonte", command=self.load_font_dialog).pack(pady=5, fill='x')
+        CTkButton(button_frame, text="Salvar Fonte", command=lambda: self.font.save()).pack(pady=5, fill='x')
+        CTkButton(button_frame, text="Salvar Como...", command=self.save_font_as_dialog).pack(pady=5, fill='x')
+
+        # Botão Encerrar
+        CTkButton(button_frame, text="Encerrar", command=self.destroy, fg_color="#C0392B", hover_color="#E74C3C").pack(
+            pady=(20, 5), fill='x')
 
         # --- Bindings e Inicialização ---
         self.font_canvas.bind('<Button-1>', self.on_char_click)
@@ -447,7 +448,7 @@ class FontEditorApp(CTk):
                     byte_data = pattern[y]
                     for x in range(8):
                         if (byte_data >> (7 - x)) & 1:
-                            # Desenha o pixel ampliado
+                            # Desenha o pixel ampliado (agora 4x4)
                             px = x_start + x * self.char_display_scale
                             py = y_start + y * self.char_display_scale
                             self.font_canvas.create_rectangle(
@@ -481,8 +482,7 @@ class FontEditorApp(CTk):
         row = code // 16
         col = code % 16
 
-        # O código MSX (ASCII estendido) para o display da tela é 0 a 255.
-        char_repr = chr(code) if 32 <= code <= 126 else f'<{code}>'  # Representação mais clara para não imprimíveis
+        char_repr = chr(code) if 32 <= code <= 126 else f'<{code}>'
 
         self.info_label.configure(text=
                                   f"Arquivo: {os.path.basename(self.font.filepath)}\n"
@@ -508,10 +508,7 @@ class FontEditorApp(CTk):
 
     def on_key_press(self, event):
         """Trata eventos de teclado para navegação e edição."""
-        if event.keysym in ['Up', 'Down', 'Left', 'Right']:
-            # Ignora a primeira parte do evento se estiver na janela principal (precisa de foco)
-            pass
-
+        # Se o Canvas estiver focado (ou o mouse sobre ele)
         if self.winfo_containing(self.winfo_pointerx(), self.winfo_pointery()) is self.font_canvas:
             if event.keysym == 'Up':
                 self.move_cursor(0, -1)
@@ -549,7 +546,6 @@ class FontEditorApp(CTk):
         char_code = self.selected_char_code
         current_pattern = list(self.font.get_char_pattern(char_code))
 
-        # Cria a janela de edição
         EditorWindow(self, char_code, current_pattern, self.on_editor_close)
 
     def on_editor_close(self, char_code, new_pattern):
@@ -565,7 +561,6 @@ class FontEditorApp(CTk):
 
 if __name__ == '__main__':
     # 1. Configuração e obtenção do caminho da fonte padrão
-    # setup_config() usa um CTk temporário para os diálogos
     default_font_path = setup_config()
 
     # 2. Inicialização da Aplicação CustomTkinter principal
