@@ -1,8 +1,9 @@
 import sqlite3
 import os
 import struct
-from tkinter import *
-from tkinter import filedialog, simpledialog, messagebox
+import sys  # Necessário para o SystemExit
+from tkinter import filedialog, messagebox, Canvas  # Mantemos o Canvas do tkinter
+from customtkinter import *  # Importa todos os widgets CustomTkinter
 
 # --- Constantes e Configuração ---
 CONFIG_DB = 'msx_font_editor.db'
@@ -14,9 +15,9 @@ DEFAULT_FONT_PATH_KEY = 'fonte_padrao_caminho'
 def setup_config():
     """Configura o banco de dados SQLite e garante a configuração inicial (caminho da fonte)."""
 
-    # É necessário inicializar o Tkinter para usar as caixas de diálogo
-    root = Tk()
-    root.withdraw()  # Esconde a janela principal do Tkinter
+    # Inicializa o CustomTkinter para usar as caixas de diálogo
+    root = CTk()
+    root.withdraw()  # Esconde a janela principal do CustomTkinter
 
     try:
         conn = sqlite3.connect(CONFIG_DB)
@@ -62,7 +63,7 @@ def setup_config():
                     if not messagebox.askretrycancel("Erro de Configuração",
                                                      "O caminho da fonte padrão é obrigatório para iniciar o editor. Tentar novamente?"):
                         root.destroy()
-                        raise SystemExit("Configuração inicial cancelada pelo usuário.")
+                        sys.exit("Configuração inicial cancelada pelo usuário.")
         else:
             conn.close()
             path = result[0]
@@ -71,7 +72,8 @@ def setup_config():
 
     except Exception as e:
         root.destroy()
-        raise e
+        messagebox.showerror("Erro de Inicialização", f"Ocorreu um erro no setup: {e}")
+        sys.exit()
 
 
 def set_config(key, value):
@@ -89,24 +91,22 @@ class MSXFont:
     """Representa o alfabeto MSX e manipula a leitura/escrita do formato .ALF."""
 
     HEADER_SIZE = 7
-    CHAR_SIZE = 8  # 8 bytes por caractere (8x8 pixels)
-    NUM_CHARS = 256  # ASCII 0-255
-    DATA_SIZE = NUM_CHARS * CHAR_SIZE  # 2048 bytes
-    FILE_SIZE = HEADER_SIZE + DATA_SIZE  # 2055 bytes
+    CHAR_SIZE = 8
+    NUM_CHARS = 256
+    DATA_SIZE = NUM_CHARS * CHAR_SIZE
+    FILE_SIZE = HEADER_SIZE + DATA_SIZE
 
-    # Cabeçalho padrão do Graphos III para dados em $9200-$99FF (formato LSB/MSB)
-    # &FE (Identificador BINARY) | Load: $9200 | End: $99FF | Exec: $9200
+    # Cabeçalho padrão do Graphos III
     DEFAULT_HEADER = struct.pack('<BHHH', 0xFE, 0x9200, 0x99FF, 0x9200)
 
     def __init__(self, filepath):
         self.filepath = filepath
         self.chars = self._load_font()
-        self.modified_chars = set()  # Set para rastrear caracteres alterados
+        self.modified_chars = set()
 
     def _load_font(self):
         """Carrega a fonte do arquivo .ALF, validando o cabeçalho e o tamanho."""
         if not os.path.exists(self.filepath):
-            # 2048 bytes de zeros (pixels apagados)
             empty_data = bytearray(self.DATA_SIZE)
             messagebox.showwarning("Aviso", f"Arquivo de fonte '{self.filepath}' não encontrado. Criando fonte vazia.")
             return [empty_data[i:i + self.CHAR_SIZE] for i in range(0, self.DATA_SIZE, self.CHAR_SIZE)]
@@ -117,18 +117,15 @@ class MSXFont:
         if len(content) != self.FILE_SIZE:
             messagebox.showerror("Erro",
                                  f"Tamanho de arquivo inválido: {len(content)} bytes. Esperado: {self.FILE_SIZE} bytes.")
-            # Cria uma fonte vazia para permitir a continuação
             empty_data = bytearray(self.DATA_SIZE)
             return [empty_data[i:i + self.CHAR_SIZE] for i in range(0, self.DATA_SIZE, self.CHAR_SIZE)]
 
-        # Ignora a verificação estrita do cabeçalho para permitir carregar arquivos BLOAD comuns, mas avisa.
         header = content[:self.HEADER_SIZE]
         if header != self.DEFAULT_HEADER:
             messagebox.showwarning("Aviso",
                                    "O cabeçalho do arquivo não corresponde ao padrão Graphos III ($9200-$99FF). O arquivo será lido, mas a gravação usará o cabeçalho padrão.")
 
         data = bytearray(content[self.HEADER_SIZE:])
-        # Divide os 2048 bytes em 256 caracteres de 8 bytes
         return [data[i:i + self.CHAR_SIZE] for i in range(0, self.DATA_SIZE, self.CHAR_SIZE)]
 
     def get_char_pattern(self, ascii_code):
@@ -150,46 +147,51 @@ class MSXFont:
 
         try:
             with open(filepath, 'wb') as f:
-                # 1. Escreve o cabeçalho padrão
                 f.write(self.DEFAULT_HEADER)
-
-                # 2. Escreve os dados dos caracteres (2048 bytes)
                 for char_pattern in self.chars:
                     f.write(char_pattern)
 
             self.filepath = filepath
             self.modified_chars.clear()
             messagebox.showinfo("Sucesso", f"Fonte salva em: {filepath}")
+            return True
         except Exception as e:
             messagebox.showerror("Erro de Gravação", f"Não foi possível salvar o arquivo: {e}")
+            return False
 
 
-# --- Janela de Edição 8x8 ---
+# --- Janela de Edição 8x8 (Usando CTkTopLevel) ---
 
-class EditorWindow(simpledialog.Toplevel):
+class EditorWindow(CTkToplevel):
     """Janela de edição 8x8 de um caractere."""
 
-    # Cores (constantes da aplicação principal, redefinidas aqui por clareza)
+    # Cores
     COLOR_BG = '#1e1e1e'
     COLOR_PIXEL_ON = '#ffffff'
     COLOR_PIXEL_OFF = '#303030'
-    COLOR_CURSOR = '#007ACC'
+    COLOR_CURSOR = '#1F6AA5'  # Azul mais claro, padrão CTk
 
     def __init__(self, master, char_code, pattern, callback):
         self.char_code = char_code
         self.callback = callback
-        # Converte os 8 bytes do padrão em uma matriz 8x8 de 0s e 1s
         self.pixel_data = [[(pattern[row] >> (7 - col)) & 1 for col in range(8)] for row in range(8)]
-        self.pixel_size = 40  # Tamanho grande do pixel na janela de edição
+        self.pixel_size = 40
 
         super().__init__(master)
         self.title(f"Editor de Caractere: 0x{char_code:02X} ('{chr(char_code) if 32 <= char_code <= 126 else ' '}')")
-        self.configure(bg=self.COLOR_BG)
+        self.configure(fg_color=self.COLOR_BG)
         self.resizable(False, False)
+        self.transient(master)  # Mantém a janela de edição sobre a principal
+        self.grab_set()  # Captura todos os eventos para esta janela
 
-        self.editor_canvas = Canvas(self, width=8 * self.pixel_size, height=8 * self.pixel_size,
+        # Frame para conter o canvas
+        editor_frame = CTkFrame(self, fg_color=self.COLOR_BG)
+        editor_frame.pack(padx=10, pady=10)
+
+        # O Canvas do Tkinter é usado, pois CustomTkinter não possui um Canvas próprio
+        self.editor_canvas = Canvas(editor_frame, width=8 * self.pixel_size, height=8 * self.pixel_size,
                                     bg=self.COLOR_BG, highlightthickness=1, highlightbackground=self.COLOR_PIXEL_ON)
-        self.editor_canvas.pack(padx=10, pady=10)
+        self.editor_canvas.pack(padx=1, pady=1)
 
         self.cursor_row, self.cursor_col = 0, 0
 
@@ -227,7 +229,8 @@ class EditorWindow(simpledialog.Toplevel):
         x1, y1 = c * self.pixel_size, r * self.pixel_size
         x2, y2 = x1 + self.pixel_size, y1 + self.pixel_size
 
-        self.editor_canvas.create_rectangle(x1, y1, x2, y2, outline=self.COLOR_CURSOR, width=2, tags="editor_cursor")
+        self.editor_canvas.create_rectangle(x1, y1, x2, y2, outline=self.COLOR_CURSOR, width=3,
+                                            tags="editor_cursor")  # Aumentei a espessura para destaque
 
     def move_editor_cursor(self, dx, dy):
         """Move o cursor na grade 8x8."""
@@ -239,7 +242,7 @@ class EditorWindow(simpledialog.Toplevel):
         """Inverte o estado do pixel e redesenha."""
         self.pixel_data[r][c] = 1 - self.pixel_data[r][c]
         self.draw_editor()
-        self.draw_editor_cursor()  # Garante que o cursor seja desenhado por último
+        self.draw_editor_cursor()
 
     def toggle_current_pixel(self, event=None):
         """Inverte o pixel sob o cursor."""
@@ -274,93 +277,95 @@ class EditorWindow(simpledialog.Toplevel):
             byte_val = 0
             for c in range(8):
                 if self.pixel_data[r][c] == 1:
-                    byte_val |= (1 << (7 - c))  # Define o bit correto
+                    byte_val |= (1 << (7 - c))
             new_pattern[r] = byte_val
 
         self.callback(self.char_code, new_pattern)
+        self.grab_release()
         self.destroy()
 
-    def cancel_and_close(self):
+    def cancel_and_close(self, event=None):
         """Fecha a janela sem salvar, passando None no callback."""
         self.callback(self.char_code, None)
+        self.grab_release()
         self.destroy()
 
 
-# --- Aplicação Principal (GUI) ---
+# --- Aplicação Principal (CustomTkinter) ---
 
-class FontEditorApp:
+class FontEditorApp(CTk):
     """Gerencia a janela principal e a visualização 16x16 da fonte."""
 
-    def __init__(self, master, default_font_path):
-        self.master = master
-        master.title("MSX Graphos III Font Editor (Python/SQLite)")
+    def __init__(self, default_font_path):
+        super().__init__()
+
+        self.title("MSX Graphos III Font Editor (Python/CustomTkinter)")
+        # Configurações de tema do CustomTkinter
+        set_appearance_mode("Dark")  # Preferência por cores escuras
+        set_default_color_theme("blue")
 
         self.font = MSXFont(default_font_path)
-        self.selected_char_code = 32  # Começa no código ASCII 32 (espaço)
+        self.selected_char_code = 32
 
         # Tamanhos
-        self.char_display_scale = 2  # Escala de visualização de 8x8 para 16x16
-        self.main_char_size = 8 * self.char_display_scale  # Tamanho de 1 char no canvas principal (16px)
-        self.canvas_size = 16 * self.main_char_size + self.main_char_size  # 16 caracteres + margem para coordenadas
+        self.char_display_scale = 2
+        self.main_char_size = 8 * self.char_display_scale
+        self.canvas_size = 16 * self.main_char_size + self.main_char_size
 
-        # Cores (Preferencialmente escuras)
-        self.COLOR_BG = '#1e1e1e'  # Fundo escuro
-        self.COLOR_FG = '#ffffff'  # Texto branco
-        self.COLOR_PIXEL_ON = '#ffffff'  # Pixel ligado (branco)
-        self.COLOR_PIXEL_OFF = '#303030'  # Pixel desligado (cinza escuro)
-        self.COLOR_CURSOR = '#007ACC'  # Cursor (azul escuro)
-        self.COLOR_MODIFIED = '#400000'  # Caractere modificado (bordô escuro)
+        # Cores (Ajustadas para o tema CustomTkinter, mas usadas no Canvas)
+        self.COLOR_BG = '#1e1e1e'
+        self.COLOR_FG = 'white'
+        self.COLOR_PIXEL_ON = 'white'
+        self.COLOR_PIXEL_OFF = '#303030'
+        self.COLOR_CURSOR = '#1F6AA5'
+        self.COLOR_MODIFIED = '#581845'  # Roxo/Bordô escuro para contraste no modo Dark
 
-        master.configure(bg=self.COLOR_BG)
+        # --- Layout Principal (Grid) ---
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_columnconfigure(0, weight=0)  # Canvas fixo
+        self.grid_columnconfigure(1, weight=1)  # Painel de info
 
-        # --- Estrutura da GUI ---
+        # 1. Área de Visualização do Alfabeto (Frame esquerdo)
+        font_frame = CTkFrame(self, fg_color="transparent")
+        font_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nswe")
 
-        main_frame = Frame(master, bg=self.COLOR_BG)
-        main_frame.pack(padx=10, pady=10)
-
-        # 1. Área de Visualização do Alfabeto (16x16)
-        font_frame = Frame(main_frame, bg=self.COLOR_BG)
-        font_frame.pack(side=LEFT, padx=10)
-
+        # O Canvas é o componente que realmente desenha os pixels e a grade
         self.font_canvas = Canvas(font_frame, width=self.canvas_size, height=self.canvas_size,
-                                  bg=self.COLOR_BG, highlightthickness=1, highlightbackground=self.COLOR_FG)
+                                  bg=self.COLOR_BG, highlightthickness=2, highlightbackground=self.COLOR_CURSOR)
         self.font_canvas.pack(padx=5, pady=5)
 
-        # 2. Área de Informações
-        info_frame = Frame(main_frame, bg=self.COLOR_BG)
-        info_frame.pack(side=LEFT, padx=10, fill=Y)
+        # 2. Área de Informações (Frame direito)
+        info_frame = CTkFrame(self, fg_color="transparent")
+        info_frame.grid(row=0, column=1, padx=10, pady=10, sticky="n")
 
-        self.info_label = Label(info_frame, text="", fg=self.COLOR_FG, bg=self.COLOR_BG, font=("Consolas", 12))
-        self.info_label.pack(pady=10, anchor=W)
+        self.info_label = CTkLabel(info_frame, text="", text_color=self.COLOR_FG, font=("Consolas", 14), justify=LEFT)
+        self.info_label.pack(pady=(10, 20), anchor=W)
 
-        Label(info_frame, text="Controles:", fg=self.COLOR_FG, bg=self.COLOR_BG).pack(pady=(20, 0), anchor=W)
+        CTkLabel(info_frame, text="Controles:", text_color=self.COLOR_FG, font=("Arial", 12, "bold")).pack(pady=(20, 0),
+                                                                                                           anchor=W)
         controls = [
-            ("Setas", "Navegar"),
-            ("ENTER / LMB", "Abrir Editor"),
+            ("Setas", "Navegar no Alfabeto"),
+            ("ENTER / LMB", "Abrir Editor de Pixel"),
             ("Botão Direito / ENTER (Editor)", "Salvar Edição"),
             ("SPACE (Editor)", "Inverter Pixel"),
             ("Ctrl+S", "Salvar Fonte")
         ]
         for key, action in controls:
-            Label(info_frame, text=f"• {key}: {action}", fg=self.COLOR_FG, bg=self.COLOR_BG, justify=LEFT).pack(
-                anchor=W)
+            CTkLabel(info_frame, text=f"• {key}: {action}", text_color=self.COLOR_FG, font=("Arial", 12),
+                     justify=LEFT).pack(anchor=W)
 
-        # --- Menus ---
-        menubar = Menu(master)
-        file_menu = Menu(menubar, tearoff=0)
-        file_menu.add_command(label="Abrir Fonte...", command=self.load_font_dialog)
-        file_menu.add_command(label="Salvar Fonte", command=lambda: self.font.save(), accelerator="Ctrl+S")
-        file_menu.add_command(label="Salvar Fonte Como...", command=self.save_font_as_dialog)
-        file_menu.add_separator()
-        file_menu.add_command(label="Sair", command=master.quit)
-        menubar.add_cascade(label="Arquivo", menu=file_menu)
+        # 3. Botões de Ação (Abaixo do painel de info)
+        button_frame = CTkFrame(info_frame, fg_color="transparent")
+        button_frame.pack(pady=20, anchor=W)
 
-        master.config(menu=menubar)
+        CTkButton(button_frame, text="Abrir Nova Fonte", command=self.load_font_dialog).pack(pady=5)
+        CTkButton(button_frame, text="Salvar Fonte", command=lambda: self.font.save()).pack(pady=5)
+        CTkButton(button_frame, text="Salvar Como...", command=self.save_font_as_dialog).pack(pady=5)
 
         # --- Bindings e Inicialização ---
         self.font_canvas.bind('<Button-1>', self.on_char_click)
-        self.master.bind('<Key>', self.on_key_press)
-        self.master.bind('<Control-s>', lambda event: self.font.save())
+        self.bind('<Key>', self.on_key_press)
+        self.bind('<Control-s>', lambda event: self.font.save())
 
         self.draw_grid()
         self.draw_font()
@@ -375,7 +380,7 @@ class FontEditorApp:
         if filepath:
             try:
                 self.font = MSXFont(filepath)
-                set_config(DEFAULT_FONT_PATH_KEY, filepath)  # Atualiza a fonte padrão
+                set_config(DEFAULT_FONT_PATH_KEY, filepath)
                 self.draw_font()
                 self.update_info_label()
             except Exception as e:
@@ -395,32 +400,32 @@ class FontEditorApp:
         """Desenha a grade 16x16 e as coordenadas hexadecimais (0-F)."""
         start_offset = self.main_char_size
 
-        # Desenha as linhas e colunas
         for i in range(17):
             coord = i * self.main_char_size
 
             # Linhas horizontais (Grid)
             self.font_canvas.create_line(start_offset, coord + start_offset, self.canvas_size, coord + start_offset,
-                                         fill=self.COLOR_PIXEL_OFF)
+                                         fill=self.COLOR_PIXEL_OFF, tags="grid")
             # Linhas verticais (Grid)
             self.font_canvas.create_line(coord + start_offset, start_offset, coord + start_offset, self.canvas_size,
-                                         fill=self.COLOR_PIXEL_OFF)
+                                         fill=self.COLOR_PIXEL_OFF, tags="grid")
 
-            # Coordenadas Hexa (Colunas)
+            # Coordenadas Hexa
             if i < 16:
+                # Colunas (x)
                 text_x = start_offset + (i * self.main_char_size) + (self.main_char_size / 2)
-                self.font_canvas.create_text(text_x, start_offset / 2, text=f'{i:X}', fill=self.COLOR_FG, tags="coords")
-
-            # Coordenadas Hexa (Linhas)
-            if i < 16:
+                self.font_canvas.create_text(text_x, start_offset / 2, text=f'{i:X}', fill=self.COLOR_CURSOR,
+                                             font=("Consolas", 10), tags="coords")
+                # Linhas (y)
                 text_y = start_offset + (i * self.main_char_size) + (self.main_char_size / 2)
-                self.font_canvas.create_text(start_offset / 2, text_y, text=f'{i:X}', fill=self.COLOR_FG, tags="coords")
+                self.font_canvas.create_text(start_offset / 2, text_y, text=f'{i:X}', fill=self.COLOR_CURSOR,
+                                             font=("Consolas", 10), tags="coords")
 
     def draw_font(self):
         """Desenha todos os 256 caracteres no Canvas principal."""
-        self.font_canvas.delete("char_pixels")  # Remove desenhos de caracteres e fundos anteriores
+        self.font_canvas.delete("char_pixels")
 
-        start_offset = self.main_char_size  # Início após as coordenadas
+        start_offset = self.main_char_size
 
         for i in range(self.font.NUM_CHARS):
             row = i // 16
@@ -429,7 +434,7 @@ class FontEditorApp:
             x_start = start_offset + col * self.main_char_size
             y_start = start_offset + row * self.main_char_size
 
-            # Desenha o fundo modificado, se necessário
+            # Desenha o fundo de "modificado"
             if i in self.font.modified_chars:
                 self.font_canvas.create_rectangle(x_start, y_start, x_start + self.main_char_size,
                                                   y_start + self.main_char_size,
@@ -441,7 +446,7 @@ class FontEditorApp:
                 for y in range(8):
                     byte_data = pattern[y]
                     for x in range(8):
-                        if (byte_data >> (7 - x)) & 1:  # Verifica o bit (1 é pixel ON)
+                        if (byte_data >> (7 - x)) & 1:
                             # Desenha o pixel ampliado
                             px = x_start + x * self.char_display_scale
                             py = y_start + y * self.char_display_scale
@@ -467,7 +472,7 @@ class FontEditorApp:
         self.font_canvas.create_rectangle(
             x_start, y_start,
             x_start + self.main_char_size, y_start + self.main_char_size,
-            outline=self.COLOR_CURSOR, width=2, tags="cursor"
+            outline=self.COLOR_CURSOR, width=3, tags="cursor"
         )
 
     def update_info_label(self):
@@ -475,10 +480,19 @@ class FontEditorApp:
         code = self.selected_char_code
         row = code // 16
         col = code % 16
-        char_repr = chr(code) if 32 <= code <= 126 else ' '
 
-        self.info_label.config(
-            text=f"Caractere: 0x{code:02X}\nRepresentação: '{char_repr}'\n\nCoordenadas:\nLinha: {row:X} (0x{row:02X})\nColuna: {col:X} (0x{col:02X})")
+        # O código MSX (ASCII estendido) para o display da tela é 0 a 255.
+        char_repr = chr(code) if 32 <= code <= 126 else f'<{code}>'  # Representação mais clara para não imprimíveis
+
+        self.info_label.configure(text=
+                                  f"Arquivo: {os.path.basename(self.font.filepath)}\n"
+                                  f"Caractere (Dec): {code}\n"
+                                  f"Caractere (Hex): 0x{code:02X}\n"
+                                  f"Representação: '{char_repr}'\n\n"
+                                  f"Coordenadas (Hex):\n"
+                                  f"Linha: {row:X} (0x{row:02X})\n"
+                                  f"Coluna: {col:X} (0x{col:02X})"
+                                  )
 
     def move_cursor(self, dx, dy):
         """Move o cursor de seleção com wrap-around 16x16."""
@@ -494,22 +508,26 @@ class FontEditorApp:
 
     def on_key_press(self, event):
         """Trata eventos de teclado para navegação e edição."""
-        if event.keysym == 'Up':
-            self.move_cursor(0, -1)
-        elif event.keysym == 'Down':
-            self.move_cursor(0, 1)
-        elif event.keysym == 'Left':
-            self.move_cursor(-1, 0)
-        elif event.keysym == 'Right':
-            self.move_cursor(1, 0)
-        elif event.keysym == 'Return':  # Tecla ENTER
-            self.open_editor_window()
+        if event.keysym in ['Up', 'Down', 'Left', 'Right']:
+            # Ignora a primeira parte do evento se estiver na janela principal (precisa de foco)
+            pass
+
+        if self.winfo_containing(self.winfo_pointerx(), self.winfo_pointery()) is self.font_canvas:
+            if event.keysym == 'Up':
+                self.move_cursor(0, -1)
+            elif event.keysym == 'Down':
+                self.move_cursor(0, 1)
+            elif event.keysym == 'Left':
+                self.move_cursor(-1, 0)
+            elif event.keysym == 'Right':
+                self.move_cursor(1, 0)
+            elif event.keysym == 'Return':
+                self.open_editor_window()
 
     def on_char_click(self, event):
         """Trata o clique do mouse no Canvas principal."""
         start_offset = self.main_char_size
 
-        # Garante que o clique está dentro da área 16x16
         if event.x < start_offset or event.y < start_offset:
             return
 
@@ -520,7 +538,6 @@ class FontEditorApp:
             new_code = row * 16 + col
 
             if new_code == self.selected_char_code:
-                # Clique em caractere já selecionado abre o editor (simulando clique duplo)
                 self.open_editor_window()
             else:
                 self.selected_char_code = new_code
@@ -532,36 +549,25 @@ class FontEditorApp:
         char_code = self.selected_char_code
         current_pattern = list(self.font.get_char_pattern(char_code))
 
-        # Passa a função de callback para a janela de edição
-        EditorWindow(self.master, char_code, current_pattern, self.on_editor_close)
+        # Cria a janela de edição
+        EditorWindow(self, char_code, current_pattern, self.on_editor_close)
 
     def on_editor_close(self, char_code, new_pattern):
         """Callback chamado quando a janela de edição é fechada."""
         if new_pattern is not None:
-            # Verifica se houve alteração
             old_pattern = list(self.font.get_char_pattern(char_code))
             if old_pattern != new_pattern:
                 self.font.update_char_pattern(char_code, new_pattern)
-                self.draw_font()  # Redesenha para mostrar a mudança de cor e o novo caractere
+                self.draw_font()
 
 
 # --- Execução Principal ---
 
 if __name__ == '__main__':
     # 1. Configuração e obtenção do caminho da fonte padrão
-    try:
-        # Tenta configurar/carregar a fonte padrão. 
-        # setup_config() cuida da criação da UI de prompt se necessário.
-        default_font_path = setup_config()
-    except SystemExit:
-        exit()
-    except Exception as e:
-        messagebox.showerror("Erro Fatal", f"Ocorreu um erro na inicialização: {e}")
-        exit()
+    # setup_config() usa um CTk temporário para os diálogos
+    default_font_path = setup_config()
 
-    # 2. Inicialização da Aplicação GUI
-    # Nota: A instância raiz do Tkinter (root) já foi criada e destruída ou escondida em setup_config.
-    # Criamos uma nova instância principal para a aplicação real.
-    root = Tk()
-    app = FontEditorApp(root, default_font_path)
-    root.mainloop()
+    # 2. Inicialização da Aplicação CustomTkinter principal
+    app = FontEditorApp(default_font_path)
+    app.mainloop()
