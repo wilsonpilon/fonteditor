@@ -1,0 +1,34 @@
+     MSX GRAPHIC TOOLS 1.O
+
+     Programadores: Equipe NEMESIS
+
+
+     APRESENTAÄ∞O
+
+     O MSX GRAPHIC TOOLS 1.O Ç um conjunto de ferramentas dedicadas a aplicaáµes gr†ficas com microcomputadores da linha MSX. Entre os arquivos que compµem este programa, podemos destacar algumas eficientes rotinas que que fazem parte da lista de instrumentos mais utilizados por nossos programadores na elaboraá±o dos mais diversos softwares para MSX.
+     Entre as funáµes dispon°veis do programa, encontramos "scanner" de telas gr†ficas, que possibilita tirarmos telas de jogos e de dentro de programas gr†ficos para posterior utilizaá±o, editor gr†fico (baseado no mais sofisticado manipulador de telas existente para a linha MSX, com todos os recursos de desenho, espelho, rotaá±o, "zoom", janelas, etc), simulador de c¢pia gr†fica em preto e branco ("blanker"), conversor de telas do MSX1 para o MSX2 (s¢ pode ser executado em MSX2), compactador e descompactador de telas (Screen Cruncher e "Descruncher"), conversores diversos para permuta de telas entre todos os editores gr†ficos existentes para MSX, carregador e conversor de telas do microcomputador ZX SPECTRUM (TK 9O/95) para MSX, programa completo de impress±o gr†fica ("HARDCOPY")para impressoras matriciais com possibilidade de mudanáa entre tonalidades de cinza, diversos tamanhos e variados recursos de impress±o.
+     Sem d£vida alguma, o MSX GRAPHIC TOOLS 1.O far† de agora em diante parte dos utilit†rios mais procurados pelos programadores e usu†rios de MSX em geral, tornando-o um acess¢rio indispens†vel para todos os que possuem estas m†quinas.
+
+     MANUAL DE UTILIZAÄ∞O
+
+     Antes de utilizar qualquer utilit†rio do MSX GRAPHIC TOOLS 1.O, consulte com atená±o o manual de instruáµes que acompanha o pacote. N±o nos responsabilizamos por problemas originados da m† utilizaá±o do nosso produto.
+     Em caso de Extravio, uma nova c¢pia do manual de instruáµes poder† ser adquirida na NEMESIS INFORMÑTICA LTDA. por 3/4 do preáo final de tabela do produto.
+
+     ATENÄ∞O
+
+     MSX GRAPHIC TOOLS Ç MARCA REGISTRADA da NEMESIS INFORMATICA LTDA. O programa est† registrado no Instituto da Propriedade Industrial (INPI) e o manual de instruáµes est† registrado no Departamento de Direitos Autorais da Biblioteca Nacional.
+     Os direitos de reproduá±o est±o limitados Ö NEMESIS INFORMÑTICA LTDA. Fornecedores e receptadores de c¢pias ilegais deste software e seus acess¢rios est±o sujeitos Ös penalidades previstas em lei.
+
+     GARANTIA E SUPORTE TêCNICO
+
+     A NEMESIS INFORMATICA LTDA. garante por 5 (cinco) anos o perfeito funcionamento deste software e de seus acess¢rios, bem como de outros produtos desenvolvidos pela empresa. O suporte tÇcnico Ç gratuito. Pedimos o favor de n±o solicitar informaáµes tÇcnicas por telefone. Consultas dever±o ser feitas atravÇs de carta registrada, onde o cliente dever† mencionar o n£mero de sua c¢pia, data e local de aquisiá±o.
+
+     Toda correspondància dever† ser enviada para:
+
+     NEMESIS INFORMATICA LTDA.
+
+     Caixa postal 4.583 Cep 2O.OO1
+
+     Rio de Janeiro - RJ - Brasil.
+
+
