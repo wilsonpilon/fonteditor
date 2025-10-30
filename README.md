@@ -2,6 +2,14 @@
 
 Um editor de alfabetos (fontes) para o MSX, suportando o formato binário padrão do famoso editor Graphos III. Desenvolvido em Python com uma interface gráfica moderna e persistência de dados via SQLite.
 
+### 🖼️ Visualização da Interface
+
+A interface é construída usando **CustomTkinter**, priorizando um tema escuro e visual limpo, com a grade 16x16 em destaque.
+
+![Interface do MSX Font Editor](fonteditor.png)
+
+---
+
 ### ✨ Tecnologias Envolvidas
 
 | Categoria | Tecnologia | Uso no Projeto |
